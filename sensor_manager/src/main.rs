@@ -1,87 +1,28 @@
-extern crate i2cdev;
+mod sensor_manager;
+mod sensors;
 
-use std::thread;
-use std::error::Error;
-use gpiod;
-use i2cdev::core::*;
-use i2cdev::linux;
+use sensor_manager::SensorManager;
+use sensors::vcnl4040::VCNL4040Sensor;
+use sensors::hcsr5015::HCSR5015Sensor;
 
 fn main() {
-    println!("Hello, world!");
-}
+    let mut sensor_manager = SensorManager::new();
 
-trait Sensor {
-    fn collect_data(&self) -> Result<u16, Box<dyn Error>>; // TODO: なぜヒープに格納するのか
-}
-
-
-#[repr(u8)] 
-enum VCNL4040Address {
-    AlsConf = 0x00,
-    AlsData = 0x09,
-}
-
-struct VCNL4004Sensor {
-    device: linux::LinuxI2CDevice,
-}
-
-impl VCNL4004Sensor {
-    fn new(device_path: &str, address: u16) -> Result<VCNL4004Sensor, linux::LinuxI2CError> {
-        let device = linux::LinuxI2CDevice::new(device_path, address)?;
-        Ok(Self { device })
+    let mut vcnl_sensor = VCNL4040Sensor::new("/dev/i2c-1", 0x60).unwrap();
+    if let Err(e) = vcnl_sensor.set_als_config(0x00) {
+        eprintln!("設定失敗: {:?}", e);
     }
 
-    fn setAlsConfig(&self, cmd: u8) -> Result<(), linux::LinuxI2CError>{
-        self.writeRegister(VCNL4040Address::AlsConf as u16, cmd, 0x00)
-    }
+    sensor_manager.start_sensor(1, Box::new(vcnl_sensor));
+    sensor_manager.start_sensor(2, Box::new(HCSR5015Sensor::new().unwrap()));
 
-    fn readRegister(&mut self, reg_addr: u8) -> Result<u16, linux::LinuxI2CError> { 
-        let mut buffer = [0u8; 2];
-
-        // レジスタアドレスを送信
-        self.device.write(&reg_addr.to_be_bytes())?; // TODO: 構文を確認
-
-        // データを受信
-        self.device.read(&mut buffer)?;
-
-        // 16ビット値として返す
-        let data = u16::from_be_bytes(buffer); // TODO: 関数の意味
-        Ok(data)
-
+    for sensor_thread in &sensor_manager.sensor_threads {
+        if let Ok(data) = sensor_thread.receiver.recv() {
+            println!("Received from sensor {}: {}", sensor_thread.sensor_id, data);
         }
-
-    fn writeRegister(&mut self, reg_addr: u16, lsb: u16, msb: u16) -> Result<(), E>{
-        let mut buffer = [0u8; 2];
-        buffer[0] = reg_addr as u8; // 1バイト目にレジスタアドレスをセット
-        buffer[1] = lsb as u8; // 2バイト目にLSBをセット
-        buffer[2] = msb as u8; // 3バイト目にMSBをセット
-
-        /* I2C-writeメッセージを送信 */
-        self.device.write(&buffer)?;
-
-        println!("Wrote to register 0x{:02x}:", reg_addr);
-        Ok(()) // 構文を確認
     }
-}
 
-impl Sensor for VCNL4004Sensor {
-    fn collect_data(&self) -> Result<u16, Box<dyn Error>> {
-        let value = self.readRegister(VCNL4040Address::AlsData); // TODO: 引数をu16にする
-        let value = value * 0.1; // TODO: luxの計算があっているか確認
-                                 // TODO: Result型とfloat型を計算している
-        println!("Ambient Light: {}", value);
-        Ok(value as u16)
-    }
-}
-
-struct HCSR5015Sensor {
-    chip: gpiod::Chip,
-    line: gpiod::Lines<gpiod::Options::input>
-}
-
-impl Sensor for HCSR5015Sensor {
-    fn collect_data(&self) -> Result<u16, Box<dyn Error>> {
-        let value = self.line.get_value()?;
-        Ok(value as u16)
-    }
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    sensor_manager.stop_sensor(1);
+    sensor_manager.stop_sensor(2);
 }
