@@ -23,10 +23,11 @@ impl VCNL4040Sensor {
     }
 
     fn read_register(&mut self, reg_addr: u8) -> Result<u16, linux::LinuxI2CError> {
-        let mut buffer = [0u8; 2];
-        self.device.write(&reg_addr.to_be_bytes())?;
-        self.device.read(&mut buffer)?;
-        Ok(u16::from_be_bytes(buffer))
+        // TODO: なぜこの方法ではうまくいかないか調べる
+        // self.device.write(&reg_addr.to_be_bytes())?;
+        // self.device.read(&mut buffer)?;
+        let buffer = self.device.smbus_read_word_data(reg_addr)?;
+        Ok(buffer)
     }
 
     fn write_register(&mut self, reg_addr: u8, lsb: u8, msb: u8) -> Result<(), linux::LinuxI2CError> {
@@ -40,7 +41,7 @@ impl VCNL4040Sensor {
 impl Sensor for VCNL4040Sensor {
     fn collect_data(&mut self) -> Result<u16, Box<dyn Error>> {
         let value = self.read_register(VCNL4040Address::AlsData as u8)? as f32 * 0.1;
-        println!("Ambient Light: {}", value);
+        // println!("Ambient Light: {}", value);
         Ok(value as u16)
     }
 }

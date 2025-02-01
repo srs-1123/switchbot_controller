@@ -21,7 +21,7 @@ impl Sensor for HCSR5015Sensor {
     fn collect_data(&mut self) -> Result<u16, Box<dyn Error>> {
         let mut values = 0u16;
         self.line.get_values(&mut values)?;
-        println!("value: {:?}", values);
+        // println!("value: {:?}", values);
         Ok(values)
     }
 }

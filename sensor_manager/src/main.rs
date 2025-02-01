@@ -16,9 +16,11 @@ fn main() {
     sensor_manager.start_sensor(1, Box::new(vcnl_sensor));
     sensor_manager.start_sensor(2, Box::new(HCSR5015Sensor::new().unwrap()));
 
-    for sensor_thread in &sensor_manager.sensor_threads {
-        if let Ok(data) = sensor_thread.receiver.recv() {
-            println!("Received from sensor {}: {}", sensor_thread.sensor_id, data);
+    loop {
+        for sensor_thread in &sensor_manager.sensor_threads {
+            if let Ok(data) = sensor_thread.receiver.recv() {
+                println!("Received from sensor {}: {}", sensor_thread.sensor_id, data);
+            }
         }
     }
 

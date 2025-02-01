@@ -1,0 +1,1 @@
+sshpass -p "1123" scp output/* srs23@192.168.128.198:/home/srs23/
