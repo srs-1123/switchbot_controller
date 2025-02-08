@@ -2,8 +2,14 @@ use std::sync::mpsc::{Sender, Receiver, channel};
 use std::thread;
 use crate::sensors::Sensor;
 
+#[derive(PartialEq)] // 意味を調べる
+pub enum SensorId {
+    VCNL4040,
+    HCSR5015,
+}
+
 pub struct SensorThreadStatus {
-    pub sensor_id: usize,
+    pub sensor_id: SensorId, // TODO: enum型に変更
     pub receiver: Receiver<u16>, 
     is_running: bool,
     thread_handle: Option<thread::JoinHandle<()>>,
@@ -20,7 +26,7 @@ impl SensorManager {
         }
     }
 
-    pub fn start_sensor(&mut self, sensor_id: usize, mut sensor: Box<dyn Sensor>) {
+    pub fn start_sensor(&mut self, sensor_id: SensorId, mut sensor: Box<dyn Sensor>) {
         let (tx, rx): (Sender<u16>, Receiver<u16>) = channel();
 
         let handle = thread::spawn(move || {
@@ -43,7 +49,7 @@ impl SensorManager {
         self.sensor_threads.push(status);
     }
 
-    pub fn stop_sensor(&mut self, sensor_id: usize) {
+    pub fn stop_sensor(&mut self, sensor_id: SensorId) {
         if let Some(sensor_thread) = self.sensor_threads.iter_mut().find(|s| s.sensor_id == sensor_id) {
             sensor_thread.is_running = false;
             if let Some(handle) = sensor_thread.thread_handle.take() {
